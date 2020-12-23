@@ -13,34 +13,42 @@ class OccupancyGrid:
         self.height = top_right[1] - bottom_left[1]
         self.width = top_right[0] - bottom_left[0]
 
+    def is_free(self, new_pos):
+        x_max, y_max = self.hi
+        x_min, y_min = self.lo
+        x_new, y_new = new_pos
+        if x_max >= x_new >= x_min and y_max >= y_new >= y_min:
+            if new_pos not in self.obstacles:
+                return True
+            else:
+                return False
+
     def get_neighbors(self, curr_pos):
         dir_count = {(0, 0): 0, (0, 1): 1, (-1, 1): 2, (-1, 0): 3,
                      (-1, -1): 4, (0, -1): 5, (1, -1): 6, (1, 0): 7, (1, 1): 8}  # might need a fix
         neighbors = []
         neighbor_directions = []
         x, y = curr_pos
-        x_max, y_max = self.hi
-        x_min, y_min = self.lo
         for i in [-1, 0, 1]:
             for j in [-1, 0, 1]:
                 x_new = x + i * self.resolution
                 y_new = y + j * self.resolution
                 new_pos = (x_new, y_new)
-                if x_max >= x_new >= x_min and y_max >= y_new >= y_min:
-                    if new_pos not in self.obstacles:
-                        neighbors.append(new_pos)
-                        neighbor_directions.append(dir_count[(i, j)])
+                if self.is_free(new_pos):
+                    neighbors.append(new_pos)
+                    neighbor_directions.append(dir_count[(i, j)])
         return neighbors, neighbor_directions
 
     def set_obstacles(self, num_obstacles):
         # randomly choose the obstacle coordinates
         pass
 
-    def plot_grid(self, start, end, path):
+    def plot_grid(self, start, end, path, discovered):
         # plot the grid
         fig = plt.figure()
         ax = fig.add_subplot(111, aspect='equal')
-
+        for point in discovered:
+            ax.add_patch(patches.Rectangle(point, 1, 1, color='yellow'))
         for obs in self.obstacles:
             ax.add_patch(patches.Rectangle(obs, 1, 1, color='grey'))
         for pos in path:
