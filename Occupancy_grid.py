@@ -61,3 +61,52 @@ class OccupancyGrid:
         ax.set(xlim=(0, self.width), ylim=(0, self.height))
         plt.grid(linestyle="-", color='black')
         plt.show()
+
+
+class OccupancyGridRRT:
+    def __init__(self, bottom_left, top_right, resolution, obstacles):
+        self.lo = bottom_left
+        self.hi = top_right
+        self.resolution = resolution
+        self.obstacles = obstacles
+        self.height = top_right[1] - bottom_left[1]
+        self.width = top_right[0] - bottom_left[0]
+        self.lines = []
+
+    def is_free(self, new_pos):
+        x_max, y_max = self.hi
+        x_min, y_min = self.lo
+        x_new, y_new = new_pos
+        if x_max >= x_new >= x_min and y_max >= y_new >= y_min:
+            if new_pos not in self.obstacles:
+                return True
+            else:
+                return False
+
+    def plot_line(self, line, **kwargs):
+        x_vals = [line[0][0], line[1][0]]
+        y_vals = [line[0][1], line[1][1]]
+        plt.plot(x_vals, y_vals, **kwargs)
+
+    def plot_grid(self, start, end, discovered, path):
+        # plot the grid
+        xe, ye = end
+        end_region = (xe -1, ye -1)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, aspect='equal')
+        for point in discovered:
+            x, y = point
+            plt.plot(x, y, 'yo')
+        for line in self.obstacles:
+            self.plot_line(line, color='r')
+        for line in self.lines:
+            self.plot_line(line, color='g')
+        for line in path:
+            self.plot_line(line, color='black')
+        ax.add_patch(patches.Rectangle(start, 1, 1, color='blue'))
+        ax.add_patch(patches.Rectangle(end_region, 2, 2, color='green'))
+        ticks = np.arange(0, self.height + 1, self.resolution)
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
+        ax.set(xlim=(0, self.width), ylim=(0, self.height))
+        plt.show()

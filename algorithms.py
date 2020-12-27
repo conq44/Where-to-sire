@@ -4,6 +4,7 @@ import math
 import time
 from Occupancy_grid import *
 
+MAX_ITERS = 200
 
 class Node:
     def __init__(self, data):
@@ -25,7 +26,7 @@ def get_dir_penalty(curr_dir, new_dir):
     change = abs(curr_dir - new_dir)
     if change == 0:
         penalty = 0
-    elif change in [1,7]:
+    elif change in [1, 7]:
         penalty = 0.1
     elif change in [2, 6]:
         penalty = 0.15
@@ -48,6 +49,9 @@ def get_h_cost(node, end_node):
     # return np.linalg.norm(np.array(node.data) - np.array(end_node.data), ord = np.inf)/
 
 
+# RRT helper functions
+
+
 def get_distance(node, end_pos):
     """returns the heuristic cost.Here it is the diagonal distance"""
     dx = abs(node[0] - end_pos[0])
@@ -55,6 +59,24 @@ def get_distance(node, end_pos):
     D = 1
     D2 = 1
     return D * (dx + dy) + (D2 - 2 * D) * min(dx, dy)
+
+
+def ccw(A, B, C):
+    return np.cross(B - A, C - A) > 0
+
+
+def is_intersection(l1, l2):
+    A, B = np.array(l1)
+    C, D = np.array(l2)
+    return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+
+def is_free_path(obstacles, v_new, v_nearest):
+    """finds if line intersects obstacles"""
+    for line in obstacles:
+        if is_intersection(line, [v_new, v_nearest]):
+            return False
+    return True
 
 
 def get_nearest(v_new, g):
@@ -69,10 +91,24 @@ def get_nearest(v_new, g):
     return closest_vertex
 
 
+def get_path(g, new_node, start_pos):
+    count = 0
+    path = []
+    prev_pos = new_node
+    while count < MAX_ITERS:
+        count += 1
+        curr_pos = g[prev_pos]
+        path.append([prev_pos, curr_pos])
+        prev_pos = curr_pos
+        if prev_pos == start_pos:
+            return path
+    return False
+
+
 def is_end_region(new_pos, end_pos):
     xn, yn = new_pos
     xe, ye = end_pos
-    if xe+1>xn>xe-1 and ye+1>yn>ye-1:
+    if xe + 1 >= xn >= xe - 1 and ye + 1 >= yn >= ye -1:
         return True
     else:
         return False
@@ -144,30 +180,39 @@ def Astar_search(start_pos, end_pos, grid_obj):
 def RRT(start_pos, end_pos, grid_obj):
     count = 0
     g = {start_pos.data: []}
-    while count < 1000:
+    while count < 100:
+        count += 1
         xn = np.random.randint(grid_obj.lo[0], grid_obj.hi[0])
         yn = np.random.randint(grid_obj.lo[1], grid_obj.hi[1])
-        new_node = (xn,yn)
-        if grid_obj.is_free(new_node):
-            x_nearest = get_nearest(new_node, g)
-            g[x_nearest] += [new_node]
-            g[new_node] = [x_nearest]
+        new_node = (xn, yn)
+        x_nearest = get_nearest(new_node, g)
+        if is_free_path(grid_obj.obstacles, new_node, x_nearest):
+            grid_obj.lines.append([new_node, x_nearest])
+            # g[x_nearest] += [new_node]
+            g[new_node] = x_nearest
             if is_end_region(new_node, end_pos.data):
-                return g, new_node
+                print('ha')
+                path = get_path(g, new_node, start_pos.data)
+                if not path:
+                    print('planning_failed: path illegal')
+                return g.keys(), new_node, path
+    print('planning failed: reached max nodes')
+    return False
 
 
-bottom_left = (0,0)
-top_right = (20,20)
+bottom_left = (0, 0)
+top_right = (20, 20)
 resolution = 1
-obstacles = [(6,10), (7,10), (8,10), (9,10), (10,10), (11,10), (12,10), (12,11), (9,11), (9,12)]
+# obstacles = [(6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10), (12, 10), (12, 11), (9, 11), (9, 12)]
 # obstacles = []
-grid = OccupancyGrid(bottom_left, top_right, resolution, obstacles)
-start_pos = Node((0,0))
+obstacles = [[(6, 10), (14, 10)], [(14, 10), (14, 12)], [(10, 10), (14, 12)], [(10, 10), (6, 12)], [(6,12), (6, 10)]]
+grid = OccupancyGridRRT(bottom_left, top_right, resolution, obstacles)
+start_pos = Node((0, 0))
 start_pos.dist = 0
 start_pos.direction = 90
-end_pos = Node((10,11))
+end_pos = Node((10, 12))
 # start_time_2 = time.time()
-path, discovered = Astar_search(start_pos, end_pos, grid)
+# path, discovered = Astar_search(start_pos, end_pos, grid)
 # print("--- %s seconds for a star ---" % (time.time() - start_time_2))
 # grid.plot_grid(start_pos.data, end_pos.data, path, discovered)
 # start_time = time.time()
@@ -175,8 +220,6 @@ path, discovered = Astar_search(start_pos, end_pos, grid)
 # print("--- %s seconds for dijkstra ---" % (time.time() - start_time))
 # grid.plot_grid(start_pos.data, end_pos.data, path2, discovered2)
 # # print(get_h_cost(Node((2,2)),Node((4,4))))
-g, new_node = RRT(start_pos, end_pos, grid)
-discovered = g.keys()
-print(g)
-print(new_node)
-grid.plot_grid(start_pos.data, end_pos.data, path, discovered)
+discovered, last_node, path = RRT(start_pos, end_pos, grid)
+print(last_node)
+grid.plot_grid(start_pos.data, end_pos.data, discovered, path)
