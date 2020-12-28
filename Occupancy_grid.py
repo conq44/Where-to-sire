@@ -88,25 +88,26 @@ class OccupancyGridRRT:
         y_vals = [line[0][1], line[1][1]]
         plt.plot(x_vals, y_vals, **kwargs)
 
-    def plot_grid(self, start, end, discovered, path):
+    def plot_grid(self, start, end, discovered, path, shortcut_path):
         # plot the grid
         xe, ye = end
         end_region = (xe -1, ye -1)
         fig = plt.figure()
         ax = fig.add_subplot(111, aspect='equal')
-        for point in discovered:
-            x, y = point
-            plt.plot(x, y, 'yo')
+        # for point in discovered:
+        #     x, y = point
+        #     plt.plot(x, y, 'yo')
         for line in self.obstacles:
-            self.plot_line(line, color='r')
+            self.plot_line(line, color='grey')
         for line in self.lines:
-            self.plot_line(line, color='g')
-        for line in path:
+            self.plot_line(line, color='blue', linewidth=0.5)
+        for i in range(len(path)-1):
+            line = [path[i], path[i+1]]
             self.plot_line(line, color='black')
+        for i in range(len(shortcut_path)-1):
+            line = [shortcut_path[i], shortcut_path[i+1]]
+            self.plot_line(line, color='red')
         ax.add_patch(patches.Rectangle(start, 1, 1, color='blue'))
         ax.add_patch(patches.Rectangle(end_region, 2, 2, color='green'))
-        ticks = np.arange(0, self.height + 1, self.resolution)
-        ax.set_xticks(ticks)
-        ax.set_yticks(ticks)
         ax.set(xlim=(0, self.width), ylim=(0, self.height))
         plt.show()

@@ -4,13 +4,14 @@ import math
 import time
 from Occupancy_grid import *
 
-MAX_ITERS = 200
+MAX_ITERS = 2000
+
 
 class Node:
     def __init__(self, data):
         self.data = data  # stores the node id number
         self.dist = math.inf  # stores distance from start node
-        self.prev = None  # cache for the predecessor node in path
+        self.prev = None  # cache for previous node in path
         self.direction = None  # stores the direction taken to reach this node
 
     def __repr__(self):
@@ -46,10 +47,9 @@ def get_h_cost(node, end_node):
     D = 1
     D2 = 1
     return D * (dx + dy) + (D2 - 2 * D) * min(dx, dy)
-    # return np.linalg.norm(np.array(node.data) - np.array(end_node.data), ord = np.inf)/
 
 
-# RRT helper functions
+# RRT HELPER FUNCTIONS
 
 
 def get_distance(node, end_pos):
@@ -66,39 +66,41 @@ def ccw(A, B, C):
 
 
 def is_intersection(l1, l2):
+    """ finds if two lines intersect """
     A, B = np.array(l1)
     C, D = np.array(l2)
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
 
 def is_free_path(obstacles, v_new, v_nearest):
-    """finds if line intersects obstacles"""
+    """finds if there is a free path between two nodes """
     for line in obstacles:
         if is_intersection(line, [v_new, v_nearest]):
             return False
     return True
 
 
-def get_nearest(v_new, g):
+def get_nearest(new_node, parents):
+    """ gets the node in the tree closest to new_node """
     min_dist = math.inf
     closest_vertex = None
-    for vertex in g.keys():
-        print(vertex)
-        dist = get_distance(vertex, v_new)
+    for vertex in parents.keys():
+        # print(vertex)
+        dist = get_distance(vertex, new_node)
         if dist < min_dist:
             closest_vertex = vertex
             min_dist = dist
     return closest_vertex
 
 
-def get_path(g, new_node, start_pos):
+def get_path(parents, new_node, start_pos):
     count = 0
-    path = []
+    path = [new_node]
     prev_pos = new_node
     while count < MAX_ITERS:
         count += 1
-        curr_pos = g[prev_pos]
-        path.append([prev_pos, curr_pos])
+        curr_pos = parents[prev_pos]
+        path.append(curr_pos)
         prev_pos = curr_pos
         if prev_pos == start_pos:
             return path
@@ -113,6 +115,29 @@ def is_end_region(new_pos, end_pos):
     else:
         return False
 
+
+def get_shortcut(path, obstacles):
+    """ finds a shorter path by removing redundant nodes """
+    n_path = [node for node in path]
+    x3 = n_path[2]
+    i = 0
+    while x3 != n_path[-1]:
+        make_shorter = True
+        while make_shorter:
+            x1 = n_path[i]
+            x2 = n_path[i+1]
+            x3 = n_path[i+2]
+            if x3 == n_path[-1]:
+                make_shorter = False
+            if is_free_path(obstacles, x1, x3):
+                del n_path[i+1]
+            else:
+                i += 1
+                make_shorter = False
+    return n_path
+
+
+# END OF HELPER FUNCTIONS
 
 def dijkstra(start_pos, end_pos, grid_obj):
     """dijkstra path planning algorithm, returns shortest path"""
@@ -179,38 +204,43 @@ def Astar_search(start_pos, end_pos, grid_obj):
 
 def RRT(start_pos, end_pos, grid_obj):
     count = 0
-    g = {start_pos.data: []}
-    while count < 100:
+    parents = {start_pos.data: []}
+    discovered = set()
+    while count < MAX_ITERS:
         count += 1
         xn = np.random.randint(grid_obj.lo[0], grid_obj.hi[0])
         yn = np.random.randint(grid_obj.lo[1], grid_obj.hi[1])
         new_node = (xn, yn)
-        x_nearest = get_nearest(new_node, g)
-        if is_free_path(grid_obj.obstacles, new_node, x_nearest):
-            grid_obj.lines.append([new_node, x_nearest])
-            # g[x_nearest] += [new_node]
-            g[new_node] = x_nearest
-            if is_end_region(new_node, end_pos.data):
-                print('ha')
-                path = get_path(g, new_node, start_pos.data)
-                if not path:
-                    print('planning_failed: path illegal')
-                return g.keys(), new_node, path
+        if new_node not in discovered:
+            x_nearest = get_nearest(new_node, parents)
+            if is_free_path(grid_obj.obstacles, new_node, x_nearest):
+                grid_obj.lines.append([new_node, x_nearest])
+                parents[new_node] = x_nearest
+                discovered.add(new_node)
+                if is_end_region(new_node, end_pos.data):
+                    # print(parents)
+                    path = get_path(parents, new_node, start_pos.data)
+                    if not path:
+                        print('planning_failed: path illegal')
+                    return list(discovered), new_node, path
     print('planning failed: reached max nodes')
     return False
 
 
 bottom_left = (0, 0)
-top_right = (20, 20)
+top_right = (100, 100)
 resolution = 1
 # obstacles = [(6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10), (12, 10), (12, 11), (9, 11), (9, 12)]
 # obstacles = []
-obstacles = [[(6, 10), (14, 10)], [(14, 10), (14, 12)], [(10, 10), (14, 12)], [(10, 10), (6, 12)], [(6,12), (6, 10)]]
+obstacles = [[(0, 10), (40, 10)], [(40, 10), (40, 20)], [(40, 20), (0, 20)],
+            [(100, 10), (50, 10)], [(50, 10), (50, 20)], [(50, 20), (100, 20)],
+             [(0, 50), (70, 50)], [(70, 50), (70, 60)], [(70, 60), (0, 60)],
+             [(40, 100), (40, 80)], [(40, 80), (50, 80)], [(50, 80), (50, 100)]]
 grid = OccupancyGridRRT(bottom_left, top_right, resolution, obstacles)
 start_pos = Node((0, 0))
 start_pos.dist = 0
 start_pos.direction = 90
-end_pos = Node((10, 12))
+end_pos = Node((10, 80))
 # start_time_2 = time.time()
 # path, discovered = Astar_search(start_pos, end_pos, grid)
 # print("--- %s seconds for a star ---" % (time.time() - start_time_2))
@@ -221,5 +251,8 @@ end_pos = Node((10, 12))
 # grid.plot_grid(start_pos.data, end_pos.data, path2, discovered2)
 # # print(get_h_cost(Node((2,2)),Node((4,4))))
 discovered, last_node, path = RRT(start_pos, end_pos, grid)
-print(last_node)
-grid.plot_grid(start_pos.data, end_pos.data, discovered, path)
+print(path)
+shortcut_path = get_shortcut(path, obstacles)
+print(shortcut_path)
+grid.plot_grid(start_pos.data, end_pos.data, discovered, path, shortcut_path)
+# grid.plot_grid(start_pos.data, end_pos.data, discovered, shortcut_path)
